@@ -5,37 +5,26 @@ Aim of this project is to build a pastie/gist sort of an online code sharing uti
 
 If you like to test out the app you will need to install the following:
 
-1) Chrome Browser (version 5+) - This is because web sockets are still only supported in Chrome. But Firefox and other latest browsers would soon catch up!
-2) Redis 2.0 (still in Release Candidate stage) - http://code.google.com/p/redis/
-3) Node.js - 0.1.96+ (http://nodejs.org)
+1) Node.js - 0.1.96+ (http://nodejs.org)
+2) socket.io Server Library (npm install socket.io)
 
 Follow the standard installations of above programs as mentioned in their documentation.
 
 Once you have setup those, 
-* Clone this repository - https://laktek@github.com/laktek/realie.git
-
-* In app's source path and run:
-  `git submodule init`
-  `git submodule update`
-
-* Then change the path to "vendor/express" and run:
-  `git submodule init`
-  `git submodule update`
+* Clone this repository - git://github.com/christophlsa/realie.git
 
 * Change the path back to head.
 
-* Now start the redis server (normally running, `etc/redis/redis-server`)
+* Change the branch to 'socket.io'
+
+* Copy all files <https://github.com/LearnBoost/Socket.IO-node/tree/master/support/socket.io-client>
+  to public/javascripts/socket.io
 
 * Then again inside the app's source path run :
   `node app.js`
 
-* Open another console tab with the same path and run:
-  `node socket.js` 
-
-* Finally, open Chrome and visit:
-  http://localhost:3000/pad
-
-** NB: Web Sockets will use the port 8080 to communicate, so you will need to open that port.
+* Finally, open Browser and visit:
+  http://localhost:8888/pad
 
 
 Contact me via GitHub if you have issues, suggestions or need any help regarding this app.

@@ -137,56 +137,65 @@ $(function() {
   var take_diffs = true;
   var stored_lines = {};
 
+  const HOST = "localhost",
+    PORT = 8888;
+
   //Client Socket Methods
-   var socket = new WebSocket('ws://localhost:8080');
-   socket.onmessage = function(ev){
-     received_msg = JSON.parse(ev.data);
+  var socket = new io.Socket(HOST, {port:PORT});
+  socket.on('message', function(data){
+    //if ("string"===typeof(data)) {
+      received_msg = JSON.parse(data);
+    //} else {
+    //  return;
+    //}
 
-     switch(received_msg["channel"]){
-       case "initial":
-         user_id = received_msg["id"];
-         for(var user_index in received_msg["users"]){
-           addUser(received_msg["users"][user_index]);
-         }
+    switch(received_msg["channel"]){
+      case "initial":
+        user_id = received_msg["id"];
+        for(var user_index in received_msg["users"]){
+          addUser(received_msg["users"][user_index]);
+        }
 
-         // periodically check for available updates and apply them
-         window.setInterval(checkForUpdates, 100);
+        // periodically check for available updates and apply them
+        window.setInterval(checkForUpdates, 100);
 
-         // periodically send the content for syntax highlighting
-         window.setInterval(inspectLineChanges, 99);
+        // periodically send the content for syntax highlighting
+        window.setInterval(inspectLineChanges, 99);
 
-         break;
-       case "join":
-         if(received_msg["payload"]["user"] != user_id)
-           addUser(received_msg["payload"]["user"]);
-         break;
-       case "leave":
-         removeUser(received_msg["payload"]["user"]);
-         break;
-       case "chat":
-         update_queue.push(received_msg);
-         break;
-       case "add_line":
-         //store the update in the queue
-         update_queue.push(received_msg);
-         break;
-       case "modify_line":
-         //store the update in the queue
-         update_queue.push(received_msg);
-         break;
-       case "remove_line":
-         //store the update in the queue
-         update_queue.push(received_msg);
-         break;
-       case "playback_done":
-         //store the update in the queue
-         update_queue.push(received_msg);
-         break;
+        break;
+      case "join":
+        if(received_msg["payload"]["user"] != user_id)
+          addUser(received_msg["payload"]["user"]);
+        break;
+      case "leave":
+        removeUser(received_msg["payload"]["user"]);
+        break;
+      case "chat":
+        update_queue.push(received_msg);
+        break;
+      case "add_line":
+        //store the update in the queue
+        update_queue.push(received_msg);
+        break;
+      case "modify_line":
+        //store the update in the queue
+        update_queue.push(received_msg);
+        break;
+      case "remove_line":
+        //store the update in the queue
+        update_queue.push(received_msg);
+        break;
+      case "playback_done":
+        //store the update in the queue
+        update_queue.push(received_msg);
+        break;
 
-       default:
-         console.log(received_msg);
-     }
-   }
+      default:
+        console.log(received_msg);
+    }
+  });
+  
+  socket.connect();
 
   // *Sending updates as users type*
   var takeDiff = function(){
