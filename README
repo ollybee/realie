@@ -7,6 +7,7 @@ If you like to test out the app you will need to install the following:
 
 1) Node.js - 0.1.96+ (http://nodejs.org)
 2) socket.io Server Library (npm install socket.io)
+3) diff_match_patch Library (npm install diff_match_patch)
 
 Follow the standard installations of above programs as mentioned in their documentation.
 

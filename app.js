@@ -6,7 +6,10 @@ var io = require('socket.io'),
   ejs = require('ejs'),
   url = require('url'),
   path = require('path'),
-  util = require('util');
+  util = require('util'),
+  dmpmod = require('diff_match_patch');
+
+var dmp = new dmpmod.diff_match_patch();
   
 var html_file_pad = fs.readFileSync(__dirname + '/views/pad.html.ejs', 'utf8'),
   html_file_layout = fs.readFileSync(__dirname + '/views/layout.ejs', 'utf8');
@@ -51,44 +54,25 @@ var app = http.createServer(function(req, res) {
   
   if (uri == '/' || uri == '/pad') {
 
-    /*main_store.get('pad-snapshot', function(err, reply){
-        if(reply){
-          sys.puts(JSON.parse(reply.toString('utf8'))["message"]);
-          sys.puts("parsed");
-          var reply_lines = JSON.parse(reply.toString('utf8'))["message"].split("\n"); 
-          var html_lines = [];
-          for(var line_no in reply_lines){
-            html_lines.push("<div>" + reply_lines[line_no] + "</div>"); 
-          }
-          var snapshot_html = html_lines.join("");
-        }
-        else 
-          var snapshot_html = "";
-
-        //var html_pad = ejs.render(html_file_pad, {
-        //  encoding: 'utf8',
-        //  locals: {
-        //    snapshot: snapshot_html,
-        //  }
-        //});
-        
-        var html_layout = ejs.render(html_file_layout, {
-          encoding: 'utf8',
-          locals: {
-            snapshot: snapshot_html,
-          }
-        });
-        
-        res.writeHead(200, {'Content-Type': 'text/html'});
-        res.end(html_layout);
-    });*/
-    
     var snapshot_html = "";
+    
+    if (lines_ord.length != 0) {
+      for (line_num in lines_ord) {
+        snapshot_html += '<p data-uuid="' + lines_ord[line_num] + '">' + (lines[lines_ord[line_num]] || '') + '</p>';
+      }
+    }
+    
+    var pad_layout = ejs.render(html_file_pad, {
+      encoding: 'utf8',
+      locals: {
+        snapshot: snapshot_html,
+      }
+    });
     
     var html_layout = ejs.render(html_file_layout, {
       encoding: 'utf8',
       locals: {
-        snapshot: snapshot_html,
+        content: pad_layout,
       }
     });
         
@@ -134,51 +118,27 @@ function log(data){
 var user_count = 0;
 
 var socket = io.listen(app),
-  buffer = [],
-  users = [];
+  lines_ord = new Array(),
+  lines = new Object();
+  edits = new Array(),
+  changeset = 0,
+  chat = new Array(),
+  users = new Array();
+
+lines["1"] = "first document";
+lines_ord.push("1");
 
 socket.on('connection', function(client){
   log("opened connection: "+client.sessionId);
   
   var self = client;
-
-  /*client.redis_subscriber = redis.createClient(); 
-  client.redis_publisher = redis.createClient(); 
-
-  client.redis_subscriber.subscribeTo("*",
-    function (channel, message, subscriptionPattern) {
-      var output = '{"channel": "' + channel + '", "payload": ' + message + '}';
-      
-      client.send(output);
-  });*/
   
-  for(var buff_id in buffer) {
-    client.send(buffer[buff_id]);
-    log("gesendet: "+buffer[buff_id]);
-  }
+  /*for(var edit_id in edits) {
+    client.send(edits[edit_id]);
+    log("gesendet: "+edits[buff_id]);
+  }*/
 
   current_user_id = client.user_id = ++user_count;
-
-  //store the current user's id on global store
-  /*main_store.rpush('pad-users', current_user_id, function(err, reply){
-    main_store.lrange('pad-users', 0, -1, function(err, values){
-      client.send('{"channel": "initial", "id":' + current_user_id + ', "users":[' + values + '] }');
- 
-         main_store.lrange('pad-chat', 0, -1, function(err, messages){
-           for(var msg_id in messages){
-             client.send('{"channel": "chat", "payload": ' + messages[msg_id] + '}');
-           }
-         });
- 
-         //publish the message when joining
-         redis_publisher.publish("join", JSON.stringify({"user": client.user_id}),
-         function (err, reply) {
-           sys.puts(err);
-           sys.puts("Published message to " +
-           (reply === 0 ? "no one" : (reply + " subscriber(s).")));
-         });
-    });  
-  });*/
   
   users.push(client.user_id);
   
@@ -192,11 +152,8 @@ socket.on('connection', function(client){
     
     message_obj = JSON.parse(data);
     channel = message_obj["type"];
-    message = message_obj["message"];
+    msg = message_obj["message"];
     timestamp = new Date().getTime();
-    //serialized_message = JSON.stringify({"user": this.user_id, "message": message, "timestamp": timestamp, "channel": channel });
-    serialized_message = JSON.stringify({"channel": channel, "payload": {"user": client.user_id, "message": message, "timestamp": timestamp}});
-    log("gesendet: "+serialized_message);
  
     //store snapshot
     if(channel == "snapshot"){
@@ -206,49 +163,43 @@ socket.on('connection', function(client){
     }
     //send all the exisiting diff messages
     else if(channel == "playback"){
-      /*main_store.lrange('pad-1', 0, -1, function(err, messages){
-        for(var msg_id in messages){
-          log(messages[msg_id]);
-          var parsed_msg = JSON.parse(messages[msg_id]); //this is a dirty hack REMOVE!
-          client.send('{"channel":"' + parsed_msg['channel'] + '", "payload": ' + messages[msg_id] + '}');
-        }
-
-        //once all messages sent, send a playback complete message
-        client.send('{"channel": "playback_done", "payload": "" }');
-      });*/
-      
-      for(var buff_id in buffer) {
-        client.send(buffer[buff_id]);
+      for(var edit_id in edits) {
+        client.send(edits[edit_id]);
       }
       
       client.send('{"channel": "playback_done", "payload": ""}');
     }
-    else {
-      /*client.redis_publisher.publish(channel, serialized_message,
-        function (err, reply) {
-          sys.puts("Published message to " +
-            (reply === 0 ? "no one" : (reply + " subscriber(s).")));
-          //store the messages on main store
-          main_store.rpush('pad-1', serialized_message, function(err, reply){});
-      });*/
+    else if(channel == "chat") {
+      serialized_message = JSON.stringify({"channel": channel, "payload": {"user": client.user_id, "message": msg, "timestamp": timestamp}});
+      log("gesendet: "+serialized_message);
+      
       client.broadcast(serialized_message);
-      buffer.push(serialized_message);
+      chat.push(serialized_message);
+    }
+    else {
+      change = ++changeset;
+      
+      switch(channel) {
+        case "add_line":
+          addLine(msg);
+          break;
+        case "modify_line":
+          modifyLine(msg);
+          break;
+        case "remove_line":
+          removeLine(msg);
+          break;
+      }
+      
+      serialized_message = JSON.stringify({"channel": channel, "payload": {"user": client.user_id, "message": msg, "timestamp": timestamp, "changeset": change}});
+      log("gesendet: "+serialized_message);
+      
+      client.broadcast(serialized_message);
+      edits.push(serialized_message);
     }
   });
   
   client.on('disconnect', function() {
-
-   //publish a message before leaving 
-    /*client.redis_publisher.publish("leave", JSON.stringify({"user": client.user_id}),
-      function (err, reply) {
-        sys.puts(err);
-        sys.puts("Published message to " +
-          (reply === 0 ? "no one" : (reply + " subscriber(s).")));
-    });
-     
-    client.redis_publisher.close();
-    client.redis_subscriber.close();*/
-    
     client.broadcast('{"channel": "leave", "user": '+client.user_id+'}');
     var pos = users.indexOf(client.user_id);
     if (pos >= 0) {
@@ -257,5 +208,56 @@ socket.on('connection', function(client){
   });
 
 });
+
+//To add a line we need:
+//it's uuid, previous line uuid and next line uuid and content 
+var addLine = function(msg){
+  var uuid  = msg["uuid"];
+  var content = msg["content"] || "";
+
+  //find the line with next uuid
+  var next_line = lines_ord.indexOf(msg["next_uuid"]);
+  var previous_line = lines_ord.indexOf(msg["previous_uuid"]);
+
+  if(next_line != -1){
+    //insert before next uuid
+    lines[uuid] = content;
+    lines_ord.splice(next_line, 0, uuid);
+  }
+  //else find the line with previous uuid
+  else if(previous_line != -1){
+    //insert after previous uuid
+    lines_ord.splice(previous_line+1, 0, uuid);
+  }
+  else {
+    // insert as the first line
+    lines_ord.unshift(uuid);
+  }
+};
+
+//To modify a line we need:
+// the uuid of the line and diff
+var modifyLine = function(msg){
+  var uuid = msg["uuid"];
+  var patch = msg["content"];
+  var current_text = lines[uuid] || "";
+
+  var results = dmp.patch_apply(patch, current_text);
+  
+  log("patch: [uuid="+uuid+"|patch="+JSON.stringify(patch)+"|current="+current_text+"|result="+results+"]");
+  
+  lines[uuid] = results[0];
+};
+
+//To remove a line we need:
+// the uuid of the line
+var removeLine = function(msg){
+  var uuid = msg["uuid"];
+
+  lines_ord.splice(lines_ord.indexOf(uuid), 1);
+  delete lines[uuid];
+};
+
+
 
 app.listen(8888);

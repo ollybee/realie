@@ -155,6 +155,15 @@ $(function() {
         for(var user_index in received_msg["users"]){
           addUser(received_msg["users"][user_index]);
         }
+        
+        var existinglines = $("#editable_content").children("div").children("p");
+  
+        existinglines.each(function(i){
+          var uuid = $(this).attr('data-uuid');
+          var content = $(this).text();
+          
+          stored_lines[uuid] = {"content": content};
+        });
 
         // periodically check for available updates and apply them
         window.setInterval(checkForUpdates, 100);
