@@ -252,7 +252,7 @@ socket.on('connection', function(client){
     client.broadcast('{"channel": "leave", "user": '+client.user_id+'}');
     var pos = users.indexOf(client.user_id);
     if (pos >= 0) {
-      clients.splice(pos, 1);
+      users.splice(pos, 1);
     }
   });
 
